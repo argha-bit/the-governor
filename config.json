@@ -1,0 +1,11 @@
+{
+    "APP_ID":2740538,
+    "DB_HOST":"localhost",
+    "DB_PORT":3306,
+    "DB_USER":"root",
+    "DB_PASS":"root",
+    "DB_NAME":"THE_GOVERNOR",
+    "PRIVATE_KEY_PATH":"gateway-discovery-application.2026-01-27.private-key.pem",
+    "DEPLOYMENT_KIND": "OUT_OF_CLUSTER",
+    "KUBECONFIG_PATH": "C:\\Users\\Argha Roy\\.kube\\config"
+}

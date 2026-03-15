@@ -1,0 +1,10 @@
+with-expecter: true
+
+packages:
+  the_governor/usecase:
+    path: ./usecase
+    output: ./mock
+    outpkg: mock
+    interfaces:
+      GithubUtility:
+      GithubAppClient:
