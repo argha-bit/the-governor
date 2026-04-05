@@ -20,16 +20,16 @@ type RegisteredService struct {
 }
 
 type RegisterServiceV2 struct {
-	ServiceID      string     `json:"service_id"`
-	ServiceName    string     `json:"service_name"`
-	TeamName       string     `json:"team_name"`
-	Namespace      string     `json:"namespace"`
-	ContactEmail   string     `json:"contact_email"`
-	ConfigEndpoint string     `json:"config_endpoint"`
-	WebhookURL     string     `json:"webhook_url"`
+	ServiceID      string     `json:"service_id" yaml:"serviceId"`
+	ServiceName    string     `json:"service_name" yaml:"serviceName"`
+	TeamName       string     `json:"team_name" yaml:"teamName"`
+	Namespace      string     `json:"namespace" yaml:"namespace"`
+	ContactEmail   string     `json:"contact_email" yaml:"contactEmail"`
+	ConfigEndpoint string     `json:"config_endpoint" yaml:"configEndpoint"`
+	WebhookURL     string     `json:"webhook_url" yaml:"webhookUrl"`
 	Metadata       JSONMap    `gorm:"type:json" json:"metadata"`
-	CreatedAt      *time.Time `json:"created_at"`
-	UpdatedAt      *time.Time `json:"updated_at"`
+	CreatedAt      *time.Time `json:"created_at" yaml:"createdAt"`
+	UpdatedAt      *time.Time `json:"updated_at" yaml:"updatedAt"`
 }
 
 // TableName specifies the table name

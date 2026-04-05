@@ -7,9 +7,16 @@ import (
 	"github.com/labstack/echo/v5/middleware"
 )
 
-func StartServer() {
-
-	router := newRouter()
+func StartServer(mode string) {
+	var router *echo.Echo
+	switch mode {
+	case "WEB_SERVER":
+		router = newRouter()
+	case "ARGO_PLUGIN":
+		return
+	default:
+		log.Println("UNKNOWN MODE! ABORT")
+	}
 
 	if router == nil {
 		log.Println("Router Not Initialized")

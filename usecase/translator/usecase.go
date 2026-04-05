@@ -3,18 +3,17 @@ package translator
 import (
 	"context"
 	"fmt"
+	"log"
 	"the_governor/constants"
 	"the_governor/usecase"
 	"the_governor/utils"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 type BaseTranslator struct {
-	clientset *rest.Config
 	namespace string
 }
 
@@ -28,16 +27,23 @@ func (b *BaseTranslator) SupportsRateLimiting() bool {
 	return false
 }
 
-func (b *BaseTranslator) CreateHTTPRoute(ctx context.Context, route constants.RouteDefinition) (*gatewayv1.HTTPRoute, error) {
+func (b *BaseTranslator) TranslateHTTPRoute(ctx context.Context, route constants.RouteDefinition) (*gatewayv1.HTTPRoute, []metav1.Object, error) {
 	var backendRefs []gatewayv1.HTTPBackendRef
+	var backendObjects []metav1.Object
 	for _, backend := range route.Backend {
-		ref, err := b.CreateBackendRef(ctx, backend)
+		ref, extraObjects, err := b.TranslateBackendRef(ctx, backend)
 		if err != nil {
-			return nil, err
+			return nil, backendObjects, err
 		}
+		backendObjects = append(backendObjects, extraObjects...)
 		backendRefs = append(backendRefs, gatewayv1.HTTPBackendRef{BackendRef: ref})
 	}
+	log.Println(len(backendObjects), "is the number of extra backend objects created during translation")
 	httpRoute := &gatewayv1.HTTPRoute{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "gateway.networking.k8s.io/v1",
+			Kind:       "HTTPRoute",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      route.RouteName,
 			Namespace: "my-namespace",
@@ -68,10 +74,11 @@ func (b *BaseTranslator) CreateHTTPRoute(ctx context.Context, route constants.Ro
 		},
 	}
 
-	return httpRoute, nil
+	return httpRoute, backendObjects, nil
 }
 
-func (b *BaseTranslator) CreateBackendRef(ctx context.Context, backend constants.BackendRef) (gatewayv1.BackendRef, error) {
+func (b *BaseTranslator) TranslateBackendRef(ctx context.Context, backend constants.BackendRef) (gatewayv1.BackendRef, []metav1.Object, error) {
+	var extraObjects []metav1.Object
 	switch backend.Type {
 	case "kube":
 		var weight int
@@ -89,13 +96,15 @@ func (b *BaseTranslator) CreateBackendRef(ctx context.Context, backend constants
 				Port:      ptr.To(gatewayv1.PortNumber(backend.Port)),
 			},
 			Weight: ptr.To(int32(weight)),
-		}, nil
+		}, nil, nil
 	case "external":
 		//for external we need to create the Service and extract the BackendRef
-		service, err := utils.CreateExternalK8sService(backend, "my-namespace", b.clientset)
+		service, err := utils.BuildExternalK8sService(backend, "my-namespace")
 		if err != nil {
-			return gatewayv1.BackendRef{}, err
+			return gatewayv1.BackendRef{}, nil, err
 		}
+		extraObjects = append(extraObjects, service)
+		log.Println("Extra Object length", len(extraObjects))
 		return gatewayv1.BackendRef{
 			BackendObjectReference: gatewayv1.BackendObjectReference{
 				Group:     ptr.To(gatewayv1.Group("")),
@@ -104,9 +113,9 @@ func (b *BaseTranslator) CreateBackendRef(ctx context.Context, backend constants
 				Namespace: ptr.To(gatewayv1.Namespace(service.Namespace)),
 				Port:      ptr.To(gatewayv1.PortNumber(service.Spec.Ports[0].Port)),
 			},
-		}, nil
+		}, extraObjects, nil
 	}
-	return gatewayv1.BackendRef{}, fmt.Errorf("unknown backend type")
+	return gatewayv1.BackendRef{}, nil, fmt.Errorf("unknown backend type")
 }
 
 func (b *BaseTranslator) ApplyExtensions(ctx context.Context, route constants.RouteDefinition, httpRoute *gatewayv1.HTTPRoute) error {
@@ -137,9 +146,8 @@ func convertToHostnames(hostnames []string) []gatewayv1.Hostname {
 
 // func (g *GlooTranslator) CreateHTTPRoute(ctx context.Context, route constants.RouteDefinition) (*gatewayv1.HTTPRoute, error) {}
 
-func NewBaseRouteTranslator(clientset *rest.Config, namespace string) usecase.RouteTranslator {
+func NewBaseRouteTranslator(namespace string) usecase.RouteTranslator {
 	return &BaseTranslator{
-		clientset: clientset,
 		namespace: namespace,
 	}
 }

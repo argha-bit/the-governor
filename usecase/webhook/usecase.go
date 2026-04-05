@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayclient "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
 )
@@ -115,11 +116,11 @@ func (u *WebhookUsecase) HandleWebhookV2(request *request.WebhookRequestV2) erro
 		log.Printf("No registered service found for ID %s", request.ServiceID)
 		return fmt.Errorf("no registered service found for ID %s", request.ServiceID)
 	}
-	go processWebhookAsync(u, serviceDetails)
+	go processWebhookAsync(serviceDetails)
 	return nil
 
 }
-func processWebhookAsync(uc *WebhookUsecase, serviceDetails *models.RegisterServiceV2) {
+func processWebhookAsync(serviceDetails *models.RegisterServiceV2) {
 	//fetch config files by making API Call to endpoint
 	log.Printf("Processing webhook for service: %s", serviceDetails.ServiceName)
 	log.Printf("Service details: %+v", serviceDetails)
@@ -128,7 +129,7 @@ func processWebhookAsync(uc *WebhookUsecase, serviceDetails *models.RegisterServ
 	//translate the config files
 	//print the config files
 	//send final array file to the webhook endpoint of the service
-	code, config, err := utils.MakeAPICall(http.MethodGet, "http://localhost:3000/routes", map[string]string{}, nil)
+	code, config, err := utils.MakeAPICall(http.MethodGet, serviceDetails.ConfigEndpoint, map[string]string{}, nil)
 
 	if err != nil {
 		log.Println("Error in Processing routing", err.Error(), serviceDetails.ServiceID)
@@ -153,11 +154,11 @@ func processWebhookAsync(uc *WebhookUsecase, serviceDetails *models.RegisterServ
 	var routeTranslator usecase.RouteTranslator
 	if gateWayType == "" {
 		log.Println("selecting Base translator")
-		routeTranslator = translator.NewBaseRouteTranslator(k8sConfig, "my-namespace")
+		routeTranslator = translator.NewBaseRouteTranslator("my-namespace")
 	} else {
 		log.Println("Implementation Not Created yet")
 	}
-	resp, err := routeTranslator.CreateHTTPRoute(context.Background(), routeConfig.Routes[0])
+	resp, backendObjects, err := routeTranslator.TranslateHTTPRoute(context.Background(), routeConfig.Routes[0])
 	if err != nil {
 		log.Println("error creating http route", err.Error())
 		return
@@ -167,6 +168,13 @@ func processWebhookAsync(uc *WebhookUsecase, serviceDetails *models.RegisterServ
 	if err != nil {
 		log.Println("Unable to create route")
 		return
+	}
+	//handle backend objects if any
+
+	for _, backendRef := range backendObjects {
+		log.Printf("Creating backend object: %s/%s", backendRef.GetNamespace(), backendRef.GetName())
+		//create the backend object in Kubernetes
+		utils.CreateExternalK8sService(backendRef.(*corev1.Service), backendRef.GetNamespace(), k8sConfig)
 	}
 	route, err := clientSet.GatewayV1().HTTPRoutes("my-namespace").Get(context.Background(), resp.Name, v1.GetOptions{})
 	if err != nil {

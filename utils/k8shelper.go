@@ -60,8 +60,12 @@ func createOutofClusterConfig() (*rest.Config, error) {
 	return config, nil
 }
 
-func CreateExternalK8sService(routeBackend constants.BackendRef, namespace string, client *rest.Config) (*corev1.Service, error) {
+func BuildExternalK8sService(routeBackend constants.BackendRef, namespace string) (*corev1.Service, error) {
 	service := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Service",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-external-service", routeBackend.ServiceName),
 			Namespace: namespace,
@@ -80,6 +84,14 @@ func CreateExternalK8sService(routeBackend constants.BackendRef, namespace strin
 			ExternalName: routeBackend.Host,
 		},
 	}
+	return service, nil
+}
+
+func CreateExternalK8sService(service *corev1.Service, namespace string, client *rest.Config) (*corev1.Service, error) {
+	// service, err := BuildExternalK8sService(routeBackend, namespace)
+	// if err != nil {
+	// 	return &corev1.Service{}, fmt.Errorf("failed to build external Kubernetes service %w", err.Error())
+	// }
 	clientSet, err := kubernetes.NewForConfig(client)
 	if err != nil {
 		log.Println("Error creating Kubernetes clientset:", err.Error())
