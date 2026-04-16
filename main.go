@@ -9,10 +9,19 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"the_governor/controller/governorroutecontroller"
 	"the_governor/server"
 	"the_governor/usecase"
 	cf "the_governor/usecase/configprocessor"
 	"the_governor/usecase/translator"
+
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	ctrl "sigs.k8s.io/controller-runtime"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	governorv1alpha1 "the_governor/api/v1alpha1"
+
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func readContent(ghUtility usecase.GithubUtility, ctx context.Context, wg *sync.WaitGroup, owner, repoName, path string) {
@@ -80,6 +89,46 @@ func startPluginHandler() {
 	}
 	log.Println("Processing Completing exiting now")
 }
+func startOperator() {
+	// 1. Setup scheme
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = governorv1alpha1.AddToScheme(scheme)
+	_ = gatewayv1.Install(scheme)
+
+	// 2. Create manager
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		log.Fatalf("Unable to start manager: %v", err)
+	}
+
+	// 3. Select translator
+	gateWayType := os.Getenv("GATEWAY_PROVIDER")
+	var routeTranslator usecase.RouteTranslator
+	if gateWayType == "" {
+		log.Println("selecting Base translator")
+		routeTranslator = translator.NewBaseRouteTranslator("my-namespace")
+	} else {
+		log.Println("Implementation Not Created yet")
+	}
+
+	// 4. Register controller with manager
+	if err = governorroutecontroller.NewGovernorRouteController(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		routeTranslator,
+	).SetupWithManager(mgr); err != nil {
+		log.Fatalf("Unable to create GovernorRoute controller: %v", err)
+	}
+
+	// 5. Start manager — blocks until process is killed
+	log.Println("Governor Operator started, watching for GovernorRoute resources")
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		log.Fatalf("Manager exited with error: %v", err)
+	}
+}
 
 func main() {
 	var engineMode, pluginServiceId, serviceMode string
@@ -104,6 +153,8 @@ func main() {
 		}
 	case "WEB_SERVER":
 		server.StartServer(engineMode)
+	case "OPERATOR":
+		startOperator()
 	default:
 		log.Println("NO VALID ENGINE MODE FOUND! AVAILABLE ENGINE MODES ARE: ARGO_PLUGIN,WEB_SERVER")
 	}
