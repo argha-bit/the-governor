@@ -137,18 +137,17 @@ func (c ConfigProcessorPluginUsecaseHandler) ReadConfig(fileName string) error {
 		log.Println("error Unmarshalling routing request, please follow README.md", err.Error())
 	}
 	ctx := context.Background()
-	routes, backends, err := c.translatorUc.TranslateHTTPRoute(ctx, routeConfig.Routes[0])
-	if err != nil {
-		log.Println("Error translating HTTP route", err.Error(), config.ServiceID)
-		return err
-	}
-	if len(backends) > 0 {
-		log.Printf("Number of backend objects to create: %d", len(backends))
+	for _, routeDefn := range routeConfig.Routes {
+		httpRoute, backends, err := c.translatorUc.TranslateHTTPRoute(ctx, routeDefn)
+		if err != nil {
+			log.Printf("Error translating HTTP route %s: %v", routeDefn.RouteName, err)
+			return err
+		}
 		for _, b := range backends {
 			PrintAsYaml(b)
 		}
+		PrintAsYaml(httpRoute)
 	}
-	PrintAsYaml(routes)
 	return nil
 }
 
