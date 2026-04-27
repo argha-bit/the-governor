@@ -7,6 +7,7 @@ type RouteDefinition struct {
 	Hostnames   []string         `json:"hostnames" validate:"required"`
 	Path        string           `json:"path" validate:"required"`
 	PathType    string           `json:"path_type" validate:"required"`
+	Methods     []string         `json:"methods,omitempty"`
 	Backend     []BackendRef     `json:"backend"`
 	Extensions  *RouteExtensions `json:"extensions,omitempty"`
 }

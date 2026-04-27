@@ -158,36 +158,37 @@ func processWebhookAsync(serviceDetails *models.RegisterServiceV2) {
 	} else {
 		log.Println("Implementation Not Created yet")
 	}
-	resp, backendObjects, err := routeTranslator.TranslateHTTPRoute(context.Background(), routeConfig.Routes[0])
-	if err != nil {
-		log.Println("error creating http route", err.Error())
-		return
-	}
-	log.Println("HTTP Route Created", resp)
 	clientSet, err := gatewayclient.NewForConfig(k8sConfig)
 	if err != nil {
 		log.Println("Unable to create route")
 		return
 	}
-	//handle backend objects if any
+	for _, routeDefn := range routeConfig.Routes {
+		resp, backendObjects, err := routeTranslator.TranslateHTTPRoute(context.Background(), routeDefn)
+		if err != nil {
+			log.Printf("ERROR translating route %s: %v", routeDefn.RouteName, err)
+			continue
+		}
+		for _, backendRef := range backendObjects {
+			log.Printf("Creating backend object: %s/%s", backendRef.GetNamespace(), backendRef.GetName())
+			//create the backend object in Kubernetes
+			utils.CreateExternalK8sService(backendRef.(*corev1.Service), backendRef.GetNamespace(), k8sConfig)
+		}
+		//handle backend objects if any
+		route, err := clientSet.GatewayV1().HTTPRoutes("my-namespace").Get(context.Background(), resp.Name, v1.GetOptions{})
+		if err != nil {
+			route, err = clientSet.GatewayV1().HTTPRoutes("my-namespace").Create(context.Background(), resp, v1.CreateOptions{})
+		}
+		log.Println("%+v", route)
+		resp.ResourceVersion = route.ResourceVersion
+		route, err = clientSet.GatewayV1().HTTPRoutes("my-namespace").Update(context.Background(), resp, v1.UpdateOptions{})
 
-	for _, backendRef := range backendObjects {
-		log.Printf("Creating backend object: %s/%s", backendRef.GetNamespace(), backendRef.GetName())
-		//create the backend object in Kubernetes
-		utils.CreateExternalK8sService(backendRef.(*corev1.Service), backendRef.GetNamespace(), k8sConfig)
+		if err != nil {
+			log.Printf("ERROR translating route %s: %v", route.Name, err)
+			continue
+		}
+		log.Println("Route Created Successfully", route.Name)
 	}
-	route, err := clientSet.GatewayV1().HTTPRoutes("my-namespace").Get(context.Background(), resp.Name, v1.GetOptions{})
-	if err != nil {
-		route, err = clientSet.GatewayV1().HTTPRoutes("my-namespace").Create(context.Background(), resp, v1.CreateOptions{})
-	}
-	resp.ResourceVersion = route.ResourceVersion
-	route, err = clientSet.GatewayV1().HTTPRoutes("my-namespace").Update(context.Background(), resp, v1.UpdateOptions{})
-
-	if err != nil {
-		log.Println("error creating route", err.Error())
-		return
-	}
-	log.Println("Route Created Successfully", route)
 
 }
 func printJson(data any) {

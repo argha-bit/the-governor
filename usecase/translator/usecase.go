@@ -60,14 +60,8 @@ func (b *BaseTranslator) TranslateHTTPRoute(ctx context.Context, route constants
 			Hostnames: convertToHostnames(route.Hostnames),
 			Rules: []gatewayv1.HTTPRouteRule{
 				{
-					Matches: []gatewayv1.HTTPRouteMatch{
-						{
-							Path: &gatewayv1.HTTPPathMatch{
-								Type:  ptr.To(convertPathType(route.PathType)),
-								Value: ptr.To(route.Path),
-							},
-						},
-					},
+					Matches:     buildMatches(route),
+					Filters:     buildHeaderFilters(route.Extensions),
 					BackendRefs: backendRefs,
 				},
 			},
@@ -121,6 +115,67 @@ func (b *BaseTranslator) TranslateBackendRef(ctx context.Context, backend consta
 func (b *BaseTranslator) ApplyExtensions(ctx context.Context, route constants.RouteDefinition, httpRoute *gatewayv1.HTTPRoute) error {
 	// Default: do nothing
 	return nil
+}
+
+func buildHeaderFilters(ext *constants.RouteExtensions) []gatewayv1.HTTPRouteFilter {
+	//handle nil case
+	if ext == nil {
+		return nil
+	}
+	var filters []gatewayv1.HTTPRouteFilter
+	//handle Request case if not nil
+	if ext.RequestHeaders != nil {
+		filters = append(filters, gatewayv1.HTTPRouteFilter{
+			Type: gatewayv1.HTTPRouteFilterRequestHeaderModifier,
+			RequestHeaderModifier: &gatewayv1.HTTPHeaderFilter{
+				Add:    toHTTPHeaders(ext.RequestHeaders.Add),
+				Remove: ext.RequestHeaders.Remove,
+			},
+		})
+	}
+	//handle Response case if not nil
+	if ext.ResponseHeaders != nil {
+		filters = append(filters, gatewayv1.HTTPRouteFilter{
+			Type: gatewayv1.HTTPRouteFilterResponseHeaderModifier,
+			ResponseHeaderModifier: &gatewayv1.HTTPHeaderFilter{
+				Add:    toHTTPHeaders(ext.ResponseHeaders.Add),
+				Remove: ext.ResponseHeaders.Remove,
+			},
+		})
+	}
+	return filters
+}
+
+func toHTTPHeaders(headers []constants.Header) []gatewayv1.HTTPHeader {
+	if len(headers) == 0 {
+		return nil
+	}
+	result := make([]gatewayv1.HTTPHeader, len(headers))
+	for i, h := range headers {
+		result[i] = gatewayv1.HTTPHeader{
+			Name:  gatewayv1.HTTPHeaderName(h.Name),
+			Value: h.Value,
+		}
+	}
+	return result
+}
+
+func buildMatches(route constants.RouteDefinition) []gatewayv1.HTTPRouteMatch {
+	pathMatch := &gatewayv1.HTTPPathMatch{
+		Type:  ptr.To(convertPathType(route.PathType)),
+		Value: ptr.To(route.Path),
+	}
+	if len(route.Methods) == 0 {
+		return []gatewayv1.HTTPRouteMatch{{Path: pathMatch}}
+	}
+	matches := make([]gatewayv1.HTTPRouteMatch, len(route.Methods))
+	for i, m := range route.Methods {
+		matches[i] = gatewayv1.HTTPRouteMatch{
+			Path:   pathMatch,
+			Method: ptr.To(gatewayv1.HTTPMethod(m)),
+		}
+	}
+	return matches
 }
 
 func convertPathType(pathType string) gatewayv1.PathMatchType {
