@@ -44,3 +44,7 @@ type GovernorRouteList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []GovernorRoute `json:"items"`
 }
+
+// controller-gen object:headerFile="hack/boilerplate.go.txt" paths=".\api\v1alpha1\..."
+// controller-gen crd paths=".\api\v1alpha1\..." output:crd:artifacts:config=config/crd
+// controller-gen rbac:roleName=governor-operator-role paths=".\controller\governorroutecontroller\..." output:rbac:artifacts:config=config/rbac

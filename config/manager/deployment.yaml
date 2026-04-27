@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: governor-operator
+  namespace: my-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: governor-operator
+  template:
+    metadata:
+      labels:
+        app: governor-operator
+    spec:
+      serviceAccountName: governor-operator
+      containers:
+        - name: governor-operator
+          image: ghcr.io/argha-bit/the-governor:operator-latest
+          imagePullPolicy: Always
+          command: ["/code/the-governor"]
+          args: ["--engine=OPERATOR"]
+          env:
+            - name: DEPLOYMENT_KIND
+              value: IN_CLUSTER
+      imagePullSecrets:
+        - name: ghcr-secret

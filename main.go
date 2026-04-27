@@ -47,10 +47,10 @@ func isRepoAvailableForOwner(ghUtility usecase.GithubUtility, ctx context.Contex
 }
 
 func init() {
-	// Load configuration from config.json
-	configData, err := os.ReadFile("/code/config.json")
+	// Load configuration from config.json for docker images read from /code/config.json
+	configData, err := os.ReadFile("config.json")
 	if err != nil {
-		log.Println("Error reading config file: %v\n", err)
+		log.Println("Error reading config file: %v\n", err.Error())
 		return
 	}
 	//set env  variable for configs by looping and parsing JSON data

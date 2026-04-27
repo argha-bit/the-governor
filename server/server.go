@@ -12,6 +12,7 @@ func StartServer(mode string) {
 	switch mode {
 	case "WEB_SERVER":
 		router = newRouter()
+		log.Println("Router Initialized")
 	case "ARGO_PLUGIN":
 		return
 	default:

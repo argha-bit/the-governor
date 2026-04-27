@@ -20,6 +20,7 @@ var once sync.Once
 func GetMySQL() (*DBConfig, error) {
 	var err error
 	once.Do(func() {
+		log.Println("Connecting to MySQL...", getConnectionString())
 		connection, err := gorm.Open("mysql", getConnectionString())
 		if err != nil {
 			log.Println("Error connecting to MySQL", err.Error())
