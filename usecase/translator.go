@@ -5,6 +5,7 @@ import (
 	"the_governor/constants"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
@@ -21,4 +22,16 @@ type RouteTranslator interface {
 
 	// Apply extensions if supported
 	ApplyExtensions(ctx context.Context, route constants.RouteDefinition, httpRoute *gatewayv1.HTTPRoute) error
+}
+
+// GatewayTranslator is the pluggable replacement for RouteTranslator.
+// Translate returns all Kubernetes objects needed for a route (HTTPRoute,
+// backend Services, RouteOptions, Upstreams, VirtualServices — whatever the
+// target gateway requires). Callers apply the slice without knowing the type.
+type GatewayTranslator interface {
+	Translate(ctx context.Context, route constants.RouteDefinition) ([]client.Object, error)
+
+	SupportsHealthChecks() bool
+	SupportsHeaderTransformation() bool
+	SupportsRateLimiting() bool
 }

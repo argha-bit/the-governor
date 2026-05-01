@@ -10,6 +10,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
@@ -205,4 +206,33 @@ func NewBaseRouteTranslator(namespace string) usecase.RouteTranslator {
 	return &BaseTranslator{
 		namespace: namespace,
 	}
+}
+
+// BaseGatewayTranslator implements the pluggable GatewayTranslator interface.
+// It reuses BaseTranslator internally so all existing translation logic is preserved.
+type BaseGatewayTranslator struct {
+	base *BaseTranslator
+}
+
+func NewBaseGatewayTranslator(namespace string) usecase.GatewayTranslator {
+	return &BaseGatewayTranslator{
+		base: &BaseTranslator{namespace: namespace},
+	}
+}
+
+func (g *BaseGatewayTranslator) SupportsHealthChecks() bool       { return false }
+func (g *BaseGatewayTranslator) SupportsHeaderTransformation() bool { return true }
+func (g *BaseGatewayTranslator) SupportsRateLimiting() bool        { return false }
+
+func (g *BaseGatewayTranslator) Translate(ctx context.Context, route constants.RouteDefinition) ([]client.Object, error) {
+	httpRoute, backendObjects, err := g.base.TranslateHTTPRoute(ctx, route)
+	if err != nil {
+		return nil, err
+	}
+	objects := make([]client.Object, 0, 1+len(backendObjects))
+	objects = append(objects, httpRoute)
+	for _, obj := range backendObjects {
+		objects = append(objects, obj.(client.Object))
+	}
+	return objects, nil
 }

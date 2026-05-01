@@ -19,9 +19,11 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
-	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	gatewayclient "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 type WebhookUsecase struct {
@@ -121,75 +123,82 @@ func (u *WebhookUsecase) HandleWebhookV2(request *request.WebhookRequestV2) erro
 
 }
 func processWebhookAsync(serviceDetails *models.RegisterServiceV2) {
-	//fetch config files by making API Call to endpoint
 	log.Printf("Processing webhook for service: %s", serviceDetails.ServiceName)
-	log.Printf("Service details: %+v", serviceDetails)
-	var err error
-	//create an array to keep track of processed routes and their status
-	//translate the config files
-	//print the config files
-	//send final array file to the webhook endpoint of the service
-	code, config, err := utils.MakeAPICall(http.MethodGet, serviceDetails.ConfigEndpoint, map[string]string{}, nil)
+	ctx := context.Background()
 
+	code, config, err := utils.MakeAPICall(http.MethodGet, serviceDetails.ConfigEndpoint, map[string]string{}, nil)
 	if err != nil {
 		log.Println("Error in Processing routing", err.Error(), serviceDetails.ServiceID)
 		return
 	}
 	if code != http.StatusOK {
-		log.Println("endpoint returned %d", code)
+		log.Printf("endpoint returned %d", code)
 		return
 	}
+
 	var routeConfig constants.Route
-	err = json.Unmarshal(config, &routeConfig)
-	if err != nil {
+	if err := json.Unmarshal(config, &routeConfig); err != nil {
 		log.Println("error Unmarshalling routing request, please follow README.md", err.Error())
+		return
 	}
 	printJson(routeConfig)
+
 	k8sConfig, err := utils.GetK8sClient()
 	if err != nil {
-		log.Println("aborting")
+		log.Println("aborting: could not get k8s config")
 		return
 	}
+
+	//creating an empty scheme registry for the runtime
+	scheme := runtime.NewScheme()
+	//register standard types to scheme
+	_ = clientgoscheme.AddToScheme(scheme)
+	//install gateway api to scheme
+	_ = gatewayv1.Install(scheme)
+
+	k8sClient, err := client.New(k8sConfig, client.Options{Scheme: scheme})
+	if err != nil {
+		log.Println("aborting: could not create k8s client", err)
+		return
+	}
+
 	gateWayType := os.Getenv("GATEWAY_PROVIDER")
-	var routeTranslator usecase.RouteTranslator
+	var gatewayTranslator usecase.GatewayTranslator
 	if gateWayType == "" {
 		log.Println("selecting Base translator")
-		routeTranslator = translator.NewBaseRouteTranslator("my-namespace")
+		gatewayTranslator = translator.NewBaseGatewayTranslator("my-namespace")
 	} else {
 		log.Println("Implementation Not Created yet")
-	}
-	clientSet, err := gatewayclient.NewForConfig(k8sConfig)
-	if err != nil {
-		log.Println("Unable to create route")
 		return
 	}
+
 	for _, routeDefn := range routeConfig.Routes {
-		resp, backendObjects, err := routeTranslator.TranslateHTTPRoute(context.Background(), routeDefn)
+		objects, err := gatewayTranslator.Translate(ctx, routeDefn)
 		if err != nil {
 			log.Printf("ERROR translating route %s: %v", routeDefn.RouteName, err)
 			continue
 		}
-		for _, backendRef := range backendObjects {
-			log.Printf("Creating backend object: %s/%s", backendRef.GetNamespace(), backendRef.GetName())
-			//create the backend object in Kubernetes
-			utils.CreateExternalK8sService(backendRef.(*corev1.Service), backendRef.GetNamespace(), k8sConfig)
+		for _, obj := range objects {
+			existing := obj.DeepCopyObject().(client.Object)
+			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), existing)
+			if k8serrors.IsNotFound(err) {
+				if err = k8sClient.Create(ctx, obj); err != nil {
+					log.Printf("ERROR creating %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
+					continue
+				}
+			} else if err == nil {
+				obj.SetResourceVersion(existing.GetResourceVersion())
+				if err = k8sClient.Update(ctx, obj); err != nil {
+					log.Printf("ERROR updating %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
+					continue
+				}
+			} else {
+				log.Printf("ERROR getting %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
+				continue
+			}
+			log.Printf("Applied %s/%s successfully", obj.GetNamespace(), obj.GetName())
 		}
-		//handle backend objects if any
-		route, err := clientSet.GatewayV1().HTTPRoutes("my-namespace").Get(context.Background(), resp.Name, v1.GetOptions{})
-		if err != nil {
-			route, err = clientSet.GatewayV1().HTTPRoutes("my-namespace").Create(context.Background(), resp, v1.CreateOptions{})
-		}
-		log.Println("%+v", route)
-		resp.ResourceVersion = route.ResourceVersion
-		route, err = clientSet.GatewayV1().HTTPRoutes("my-namespace").Update(context.Background(), resp, v1.UpdateOptions{})
-
-		if err != nil {
-			log.Printf("ERROR translating route %s: %v", route.Name, err)
-			continue
-		}
-		log.Println("Route Created Successfully", route.Name)
 	}
-
 }
 func printJson(data any) {
 	jsonData, err := json.MarshalIndent(data, "", "  ")

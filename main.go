@@ -106,10 +106,10 @@ func startOperator() {
 
 	// 3. Select translator
 	gateWayType := os.Getenv("GATEWAY_PROVIDER")
-	var routeTranslator usecase.RouteTranslator
+	var gatewayTranslator usecase.GatewayTranslator
 	if gateWayType == "" {
 		log.Println("selecting Base translator")
-		routeTranslator = translator.NewBaseRouteTranslator("my-namespace")
+		gatewayTranslator = translator.NewBaseGatewayTranslator("my-namespace")
 	} else {
 		log.Println("Implementation Not Created yet")
 	}
@@ -118,7 +118,7 @@ func startOperator() {
 	if err = governorroutecontroller.NewGovernorRouteController(
 		mgr.GetClient(),
 		mgr.GetScheme(),
-		routeTranslator,
+		gatewayTranslator,
 	).SetupWithManager(mgr); err != nil {
 		log.Fatalf("Unable to create GovernorRoute controller: %v", err)
 	}
