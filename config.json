@@ -7,5 +7,6 @@
     "DB_NAME":"THE_GOVERNOR",
     "PRIVATE_KEY_PATH":"gateway-discovery-application.2026-01-27.private-key.pem",
     "DEPLOYMENT_KIND": "OUT_OF_CLUSTER",
-    "KUBECONFIG_PATH": "C:\\Users\\Argha Roy\\.kube\\config"
+    "KUBECONFIG_PATH": "C:\\Users\\Argha Roy\\.kube\\config",
+    "GATEWAY_PROVIDER": "GLOO_EDGE"
 }

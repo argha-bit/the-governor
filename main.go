@@ -48,7 +48,7 @@ func isRepoAvailableForOwner(ghUtility usecase.GithubUtility, ctx context.Contex
 
 func init() {
 	// Load configuration from config.json for docker images read from /code/config.json
-	configData, err := os.ReadFile("config.json")
+	configData, err := os.ReadFile("/code/config.json")
 	if err != nil {
 		log.Println("Error reading config file: %v\n", err.Error())
 		return
@@ -73,15 +73,7 @@ func init() {
 }
 
 func startPluginHandler() {
-	gateWayType := os.Getenv("GATEWAY_PROVIDER")
-	var routeTranslator usecase.RouteTranslator
-	if gateWayType == "" {
-		log.Println("selecting Base translator")
-		routeTranslator = translator.NewBaseRouteTranslator("my-namespace")
-	} else {
-		log.Println("Implementation Not Created yet")
-	}
-	configProcessor := cf.NewConfigProcessorPluginUsecaseHandler(routeTranslator)
+	configProcessor := cf.NewConfigProcessorPluginUsecaseHandler(translator.NewTranslatorFromEnv("my-namespace"))
 
 	err := configProcessor.ReadConfig("governor-config.yaml")
 	if err != nil {
@@ -105,14 +97,7 @@ func startOperator() {
 	}
 
 	// 3. Select translator
-	gateWayType := os.Getenv("GATEWAY_PROVIDER")
-	var gatewayTranslator usecase.GatewayTranslator
-	if gateWayType == "" {
-		log.Println("selecting Base translator")
-		gatewayTranslator = translator.NewBaseGatewayTranslator("my-namespace")
-	} else {
-		log.Println("Implementation Not Created yet")
-	}
+	gatewayTranslator := translator.NewTranslatorFromEnv("my-namespace")
 
 	// 4. Register controller with manager
 	if err = governorroutecontroller.NewGovernorRouteController(

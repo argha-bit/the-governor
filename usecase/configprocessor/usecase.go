@@ -19,13 +19,10 @@ import (
 type ConfigProcessorWebhookUsecaseHandler struct {
 }
 type ConfigProcessorPluginUsecaseHandler struct {
-	translatorUc usecase.RouteTranslator
+	translatorUc usecase.GatewayTranslator
 }
 
-//	func NewConfigProcessorWebhookUsecaseHandler() usecase.ConfigProcessorWebhookUsecase {
-//		return &ConfigProcessorWebhookUsecaseHandler{}
-//	}
-func NewConfigProcessorPluginUsecaseHandler(translatorUc usecase.RouteTranslator) usecase.ConfigProcessorPluginUsecaseHandler {
+func NewConfigProcessorPluginUsecaseHandler(translatorUc usecase.GatewayTranslator) usecase.ConfigProcessorPluginUsecaseHandler {
 	return &ConfigProcessorPluginUsecaseHandler{
 		translatorUc: translatorUc,
 	}
@@ -137,16 +134,13 @@ func (c ConfigProcessorPluginUsecaseHandler) ReadConfig(fileName string) error {
 		log.Println("error Unmarshalling routing request, please follow README.md", err.Error())
 	}
 	ctx := context.Background()
-	for _, routeDefn := range routeConfig.Routes {
-		httpRoute, backends, err := c.translatorUc.TranslateHTTPRoute(ctx, routeDefn)
-		if err != nil {
-			log.Printf("Error translating HTTP route %s: %v", routeDefn.RouteName, err)
-			return err
-		}
-		for _, b := range backends {
-			PrintAsYaml(b)
-		}
-		PrintAsYaml(httpRoute)
+	objects, err := c.translatorUc.TranslateAll(ctx, routeConfig.Routes)
+	if err != nil {
+		log.Printf("Error translating routes: %v", err)
+		return err
+	}
+	for _, obj := range objects {
+		PrintAsYaml(obj)
 	}
 	return nil
 }

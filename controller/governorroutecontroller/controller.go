@@ -14,7 +14,6 @@ import (
 
 	governorv1alpha1 "the_governor/api/v1alpha1"
 
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -78,43 +77,23 @@ func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	log.Printf("Parsed %d routes from configEndpoint", len(routeConfig.Routes))
 
-	// 4. Translate and apply routes
-	for _, routeDef := range routeConfig.Routes {
-		log.Printf("Translating route: %s", routeDef.RouteName)
-		objects, err := c.gatewayTranslator.Translate(ctx, routeDef)
-		if err != nil {
-			log.Printf("ERROR translating route %s: %v", routeDef.RouteName, err)
-			return ctrl.Result{}, c.setStatus(ctx, governorRoute, false,
-				fmt.Sprintf("Failed to translate route %s: %v", routeDef.RouteName, err))
-		}
+	// 4. Translate all routes at once (allows implementations to group by domain)
+	log.Printf("Translating %d routes", len(routeConfig.Routes))
+	objects, err := c.gatewayTranslator.TranslateAll(ctx, routeConfig.Routes)
+	if err != nil {
+		log.Printf("ERROR translating routes: %v", err)
+		return ctrl.Result{}, c.setStatus(ctx, governorRoute, false,
+			fmt.Sprintf("Failed to translate routes: %v", err))
+	}
 
-		for _, obj := range objects {
-			if err := ctrl.SetControllerReference(governorRoute, obj, c.Scheme); err != nil {
-				log.Printf("WARN could not set controller reference on %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
-			}
-			existing := obj.DeepCopyObject().(client.Object)
-			err := c.Get(ctx, client.ObjectKeyFromObject(obj), existing)
-			if k8serrors.IsNotFound(err) {
-				log.Printf("Creating %s/%s", obj.GetNamespace(), obj.GetName())
-				if err = c.Create(ctx, obj); err != nil {
-					log.Printf("ERROR creating %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
-					return ctrl.Result{}, c.setStatus(ctx, governorRoute, false,
-						fmt.Sprintf("Failed to create %s: %v", obj.GetName(), err))
-				}
-			} else if err == nil {
-				log.Printf("Updating %s/%s", obj.GetNamespace(), obj.GetName())
-				obj.SetResourceVersion(existing.GetResourceVersion())
-				if err = c.Update(ctx, obj); err != nil {
-					log.Printf("ERROR updating %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
-					return ctrl.Result{}, c.setStatus(ctx, governorRoute, false,
-						fmt.Sprintf("Failed to update %s: %v", obj.GetName(), err))
-				}
-			} else {
-				log.Printf("ERROR getting %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
-				return ctrl.Result{}, c.setStatus(ctx, governorRoute, false,
-					fmt.Sprintf("Failed to get %s: %v", obj.GetName(), err))
-			}
-			log.Printf("Applied %s/%s successfully", obj.GetNamespace(), obj.GetName())
+	for _, obj := range objects {
+		if err := ctrl.SetControllerReference(governorRoute, obj, c.Scheme); err != nil {
+			log.Printf("WARN could not set controller reference on %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
+		}
+		if err := utils.ApplyObject(ctx, c.Client, obj); err != nil {
+			log.Printf("ERROR applying %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
+			return ctrl.Result{}, c.setStatus(ctx, governorRoute, false,
+				fmt.Sprintf("Failed to apply %s: %v", obj.GetName(), err))
 		}
 	}
 

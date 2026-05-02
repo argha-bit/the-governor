@@ -224,15 +224,17 @@ func (g *BaseGatewayTranslator) SupportsHealthChecks() bool       { return false
 func (g *BaseGatewayTranslator) SupportsHeaderTransformation() bool { return true }
 func (g *BaseGatewayTranslator) SupportsRateLimiting() bool        { return false }
 
-func (g *BaseGatewayTranslator) Translate(ctx context.Context, route constants.RouteDefinition) ([]client.Object, error) {
-	httpRoute, backendObjects, err := g.base.TranslateHTTPRoute(ctx, route)
-	if err != nil {
-		return nil, err
+func (g *BaseGatewayTranslator) TranslateAll(ctx context.Context, routes []constants.RouteDefinition) ([]client.Object, error) {
+	var all []client.Object
+	for _, route := range routes {
+		httpRoute, backendObjects, err := g.base.TranslateHTTPRoute(ctx, route)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, httpRoute)
+		for _, obj := range backendObjects {
+			all = append(all, obj.(client.Object))
+		}
 	}
-	objects := make([]client.Object, 0, 1+len(backendObjects))
-	objects = append(objects, httpRoute)
-	for _, obj := range backendObjects {
-		objects = append(objects, obj.(client.Object))
-	}
-	return objects, nil
+	return all, nil
 }

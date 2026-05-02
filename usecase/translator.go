@@ -25,11 +25,12 @@ type RouteTranslator interface {
 }
 
 // GatewayTranslator is the pluggable replacement for RouteTranslator.
-// Translate returns all Kubernetes objects needed for a route (HTTPRoute,
-// backend Services, RouteOptions, Upstreams, VirtualServices — whatever the
-// target gateway requires). Callers apply the slice without knowing the type.
+// TranslateAll receives the full route list for a service so implementations
+// that require domain-level grouping (e.g. Gloo Edge VirtualService) can
+// merge all routes sharing the same hostnames into one object.
+// Callers apply the returned slice without knowing the concrete type.
 type GatewayTranslator interface {
-	Translate(ctx context.Context, route constants.RouteDefinition) ([]client.Object, error)
+	TranslateAll(ctx context.Context, routes []constants.RouteDefinition) ([]client.Object, error)
 
 	SupportsHealthChecks() bool
 	SupportsHeaderTransformation() bool

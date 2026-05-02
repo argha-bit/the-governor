@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"the_governor/constants"
 	"the_governor/models"
 	"the_governor/repository/historyrepository"
@@ -19,7 +18,6 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -162,41 +160,16 @@ func processWebhookAsync(serviceDetails *models.RegisterServiceV2) {
 		return
 	}
 
-	gateWayType := os.Getenv("GATEWAY_PROVIDER")
-	var gatewayTranslator usecase.GatewayTranslator
-	if gateWayType == "" {
-		log.Println("selecting Base translator")
-		gatewayTranslator = translator.NewBaseGatewayTranslator("my-namespace")
-	} else {
-		log.Println("Implementation Not Created yet")
+	gatewayTranslator := translator.NewTranslatorFromEnv("my-namespace")
+
+	objects, err := gatewayTranslator.TranslateAll(ctx, routeConfig.Routes)
+	if err != nil {
+		log.Printf("ERROR translating routes: %v", err)
 		return
 	}
-
-	for _, routeDefn := range routeConfig.Routes {
-		objects, err := gatewayTranslator.Translate(ctx, routeDefn)
-		if err != nil {
-			log.Printf("ERROR translating route %s: %v", routeDefn.RouteName, err)
-			continue
-		}
-		for _, obj := range objects {
-			existing := obj.DeepCopyObject().(client.Object)
-			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), existing)
-			if k8serrors.IsNotFound(err) {
-				if err = k8sClient.Create(ctx, obj); err != nil {
-					log.Printf("ERROR creating %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
-					continue
-				}
-			} else if err == nil {
-				obj.SetResourceVersion(existing.GetResourceVersion())
-				if err = k8sClient.Update(ctx, obj); err != nil {
-					log.Printf("ERROR updating %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
-					continue
-				}
-			} else {
-				log.Printf("ERROR getting %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
-				continue
-			}
-			log.Printf("Applied %s/%s successfully", obj.GetNamespace(), obj.GetName())
+	for _, obj := range objects {
+		if err := utils.ApplyObject(ctx, k8sClient, obj); err != nil {
+			log.Printf("ERROR applying %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
 		}
 	}
 }

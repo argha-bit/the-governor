@@ -30,13 +30,15 @@ type RouteMetaData struct {
 	Owner       string `json:"owner"`
 }
 type BackendRef struct {
-	Type        string `json:"type"`
-	Host        string `json:"host"`
-	Port        int    `json:"port"`
-	Protocol    string `json:"protocol"`
-	ServiceName string `json:"service_name"`
-	Namespace   string `json:"namespace"`
-	Weight      *int   `json:"weight"`
+	Type           string               `json:"type"`
+	Host           string               `json:"host"`
+	Port           int                  `json:"port"`
+	Protocol       string               `json:"protocol"`
+	ServiceName    string               `json:"service_name"`
+	Namespace      string               `json:"namespace"`
+	Weight         *int                 `json:"weight"`
+	HealthCheck    *HealthCheckConfig   `json:"health_check,omitempty"`
+	CircuitBreaker *CircuitBreakerConfig `json:"circuit_breaker,omitempty"`
 }
 
 type KubernetesServiceRouteBackend struct {
@@ -47,7 +49,6 @@ type KubernetesServiceRouteBackend struct {
 }
 
 type RouteExtensions struct {
-	HealthCheck     *HealthCheckConfig  `json:"health_check,omitempty"`
 	RequestHeaders  *HeaderModification `json:"request_headers,omitempty"`
 	ResponseHeaders *HeaderModification `json:"response_headers,omitempty"`
 	Timeout         string              `json:"timeout,omitempty"`
@@ -76,4 +77,11 @@ type Header struct {
 type RetryConfig struct {
 	Attempts int      `json:"attempts"`
 	RetryOn  []string `json:"retry_on"`
+}
+
+type CircuitBreakerConfig struct {
+	MaxConnections     int `json:"max_connections"`
+	MaxPendingRequests int `json:"max_pending_requests"`
+	MaxRequests        int `json:"max_requests"`
+	MaxRetries         int `json:"max_retries"`
 }
