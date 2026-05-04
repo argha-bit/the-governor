@@ -50,13 +50,13 @@ func init() {
 	// Load configuration from config.json for docker images read from /code/config.json
 	configData, err := os.ReadFile("/code/config.json")
 	if err != nil {
-		log.Println("Error reading config file: %v\n", err.Error())
+		log.Printf("Error reading config file: %v\n", err)
 		return
 	}
 	//set env  variable for configs by looping and parsing JSON data
 	var config map[string]interface{}
 	if err := json.Unmarshal(configData, &config); err != nil {
-		log.Println("Error parsing config file: %v\n", err)
+		log.Printf("Error parsing config file: %v\n", err)
 		return
 	}
 	for key, value := range config {
@@ -77,7 +77,7 @@ func startPluginHandler() {
 
 	err := configProcessor.ReadConfig("governor-config.yaml")
 	if err != nil {
-		log.Println("Error processing config: %v", err)
+		log.Printf("Error processing config: %v", err)
 	}
 	log.Println("Processing Completing exiting now")
 }

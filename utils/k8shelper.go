@@ -50,12 +50,12 @@ func createOutofClusterConfig() (*rest.Config, error) {
 	kubeconfigPath := os.Getenv("KUBECONFIG_PATH")
 	if kubeconfigPath == "" {
 		log.Println("KUBECONFIG_PATH environment variable is not set")
-		return nil, fmt.Errorf("failed to create kubernetes config %w", err.Error())
+		return nil, fmt.Errorf("failed to create kubernetes config: KUBECONFIG_PATH is not set")
 	}
 	config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
 		log.Println("Error creating out-of-cluster config:", err.Error())
-		return nil, fmt.Errorf("failed to create kubernetes config %w", err.Error())
+		return nil, fmt.Errorf("failed to create kubernetes config: %w", err)
 	}
 	return config, nil
 }
@@ -95,7 +95,7 @@ func CreateExternalK8sService(service *corev1.Service, namespace string, client 
 	clientSet, err := kubernetes.NewForConfig(client)
 	if err != nil {
 		log.Println("Error creating Kubernetes clientset:", err.Error())
-		return &corev1.Service{}, fmt.Errorf("failed to create kubernetes clientset %w", err.Error())
+		return &corev1.Service{}, fmt.Errorf("failed to create kubernetes clientset: %w", err)
 	}
 	result, err := clientSet.CoreV1().Services(namespace).Create(
 		context.Background(),
@@ -104,7 +104,7 @@ func CreateExternalK8sService(service *corev1.Service, namespace string, client 
 	)
 	if err != nil {
 		log.Println("Error creating Kubernetes service:", err.Error())
-		return &corev1.Service{}, fmt.Errorf("failed to create kubernetes service %w", err.Error())
+		return &corev1.Service{}, fmt.Errorf("failed to create kubernetes service: %w", err)
 	}
 	log.Printf("Created service %s in namespace %s\n", result.Name, result.Namespace)
 	return result, nil

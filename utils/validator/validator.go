@@ -46,7 +46,7 @@ func setUpRegisteredTranslation(validatorObj *Validator) {
 }
 func (v *Validator) checkValidGradeUpdate(fl validator.FieldLevel) bool {
 	class, ok := fl.Field().Interface().(string)
-	if !ok {
+	if !ok || class == "" {
 		return true
 	}
 	r := regexp.MustCompile(`^Grade\s(1[0-2]|[1-9])$`)
@@ -55,8 +55,8 @@ func (v *Validator) checkValidGradeUpdate(fl validator.FieldLevel) bool {
 
 func (v *Validator) checkValidGrade(fl validator.FieldLevel) bool {
 	class, ok := fl.Field().Interface().(string)
-	if !ok {
-		return false
+	if !ok || class == "" {
+		return true
 	}
 	r := regexp.MustCompile(`^Grade\s(1[0-2]|[1-9])$`)
 	return r.MatchString(class)

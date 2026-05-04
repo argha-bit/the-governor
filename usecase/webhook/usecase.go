@@ -93,7 +93,7 @@ func (u *WebhookUsecase) HandleWebhook(request *request.WebhookRequest) error {
 	}
 
 	for _, files := range fetchedFiles {
-		log.Printf("Fetched file: %s, content length: %d", files.Path, files.Content)
+		log.Printf("Fetched file: %s, content length: %d", files.Path, len(files.Content))
 	}
 	return nil
 }

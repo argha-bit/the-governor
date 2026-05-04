@@ -125,7 +125,7 @@ func (c ConfigProcessorPluginUsecaseHandler) ReadConfig(fileName string) error {
 		return err
 	}
 	if code != http.StatusOK {
-		log.Println("endpoint returned %d", code)
+		log.Printf("endpoint returned %d", code)
 		return fmt.Errorf("endpoint returned %d", code)
 	}
 	var routeConfig constants.Route
